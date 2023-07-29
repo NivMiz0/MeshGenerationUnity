@@ -32,11 +32,11 @@ public class GenerateMesh : MonoBehaviour
         //analytic geometry) each of the points to the corresponding point on the circle. That point will be the vertex.
         //Then simply copy the quarter four horizontally then vertically
         
-        float step = Mathf.Sqrt(data.radius) / (data.resolution+1);
+        float step = data.radius / (data.resolution+1);
         for (int i = 1; i <= data.resolution; i++)
         {
             float x = step*i;
-            float y = Mathf.Sqrt(data.radius) - x;
+            float y = data.radius - x;
 
             Vector3 newVert = ProjectOntoCircle(x, y);
             vertices.Add(newVert);
@@ -82,7 +82,93 @@ public class GenerateMesh : MonoBehaviour
         //start with three points: one on each intersection point of your desired sphere with the three axes.
         //focus only on one quadrant, in this case the first. Find a plane that bisects the sphere, that also intersects 
         //with the three starting points, namely the plane represented by the function z = - y - x + r. 
-        //Now, if the resolution divided by three has a remainder of 1, create a point in the middle of the three starting 
+        //Now, using the columns variable in the data object, put that number of points on the bottom side of the
+        //triangle created by the plane your created and the axes. Draw lines from the top vertex of the triangle to those, and on those lines,
+        //Generate a number of points based on the resolution variable in the data object. Then project all points on your triangle
+        //to the sphere with analytic geometry, and the resulting points on the surface of the sphere will be your vertices
+        float stepColumn = data.radius / (data.columns + 1);
+        
+        //Function for the line at the base of the triangle is z = -x + r, place the points on the base that will
+        //act as anchors for the columns
+        for (int i = 1; i <= data.columns; i++)
+        {
+            float x = stepColumn * i;
+            float z = data.radius - x; 
+
+            //(parametric) Functions of the lines that are the columns is:
+            //I: x(t) = 0 - x*t
+            //II: y(t) = r + r*t
+            //III: z(t) = 0 - z*t
+            float stepRes = data.radius/ (data.resolution + 1);
+            
+            for (int j = 1; j <= data.resolution; j++)
+            {
+                //We give it the z coord with step and solve for x and z from there
+                float y1 = stepRes * j ;
+
+                float t = (y1-data.radius)/data.radius;
+                float x1 = -x*t;
+                float z1 = -z*t;
+                vertices.Add(ProjectOntoSphere(x1, y1, z1));
+            }
+
+            vertices.Add(ProjectOntoSphere(x, 0.01f, z));
+        }
+        
+        //TODO: the other vertices of the starting triangle don't have columns of their own
+        
+        //Mirror the eighth-sphere on the x axis
+        for (int i = 0; i < vertices.Count; i++)
+        {
+            Vector3 mirror = MirrorX(vertices[i]);
+            if (!vertices.Contains(mirror))
+            {
+                vertices.Add(mirror);
+            }
+        }
+        
+        //Mirror the eighth-sphere on the y axis
+        for (int i = 0; i < vertices.Count; i++)
+        {
+            Vector3 mirror = MirrorY(vertices[i]);
+            if (!vertices.Contains(mirror))
+            {
+                vertices.Add(mirror);
+            }
+        }
+        
+        //Mirror the eighth-sphere on the z axis
+        for (int i = 0; i < vertices.Count; i++)
+        {
+            Vector3 mirror = MirrorZ(vertices[i]);
+            if (!vertices.Contains(mirror))
+            {
+                vertices.Add(mirror);
+            }
+        }
+
+        GetComponent<MeshFilter>().mesh = mesh;
+        mesh.vertices = vertices.ToArray();
+    }
+
+    void GenerateSphereBasketball()
+    {
+        Mesh mesh = new Mesh();
+        
+        mesh.Clear();
+        
+        List<Vector3> vertices = new List<Vector3>();
+        vertices.Add(new Vector3(0, data.radius, 0));
+        vertices.Add(new Vector3(data.radius, 0, 0));
+        vertices.Add(new Vector3(0, 0, data.radius));
+
+        //functions for a sphere is r^2 = x^2 + y^2 + z^2 (centered at the origin, r being the radius)
+        //my algorithm for creating a sphere will use the same concepts I put into place on the circle:
+        //start with three points: one on each intersection point of your desired sphere with the three axes.
+        //focus only on one quadrant, in this case the first. Find a plane that bisects the sphere, that also intersects 
+        //with the three starting points, namely the plane represented by the function z = - y - x + r. 
+        //Basketball algorithm (my original sphere algorithm):
+        //Now, create a point in the middle of the three starting 
         //points on the triangle. the coordinates of this point will be (r/3, r/3, r/3). Now draw a line from this mid-point to each of 
         //your starting points, and the length of these lines will be (r*sqrt(2)*sqrt(3))/3 (solved with analytic geometry).
         //Use this distance, along with the desired resolution, to calculate the "step" - the length of each segment between
@@ -98,7 +184,6 @@ public class GenerateMesh : MonoBehaviour
         float centerDist = (data.radius * sqrt2 * sqrt3) / 3;
         float step = centerDist / (data.resolution + 1);
 
-        //The points that point upward
         for (int i = 1; i <= data.resolution/3; i++)
         {
             float x = step * Mathf.Pow(i, 1.1f);
@@ -145,7 +230,7 @@ public class GenerateMesh : MonoBehaviour
         GetComponent<MeshFilter>().mesh = mesh;
         mesh.vertices = vertices.ToArray();
     }
-
+    
     //Analytic Geometry transformation code from line to circle
     public Vector3 ProjectOntoCircle(float x, float y)
     {
@@ -165,6 +250,11 @@ public class GenerateMesh : MonoBehaviour
         //I: y = mx + nz + b
         //II: y = mx + nz + b
         //formula for finding slopes is the same as in 2D for m and swap the x's for z's for n
+
+        if (x == 0 || y == 0)
+        {
+            throw new DivideByZeroException();
+        }
         float m = y / x;
         float n = y / z;
 
